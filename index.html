@@ -16,24 +16,47 @@
   h1,h2 {
     color: #0ff;
   }
-  .card-select {
+  .card-field {
+    width: 50px;
+    height: 70px;
+    border: 2px dashed #888;
     display: inline-block;
-    margin: 5px;
-    text-align: center;
+    cursor: pointer;
+    margin: 4px;
+    vertical-align: middle;
   }
-  select {
-    width: 60px;
-    font-size: 16px;
-    margin: 2px 0;
-    border-radius: 4px;
+  .card-field img {
+    width: 100%;
+    height: 100%;
+    object-fit: contain;
   }
-  .card-img {
-    width: 45px;
-    height: 65px;
-    margin-top: 4px;
-    display: block;
-    margin-left: auto;
-    margin-right: auto;
+  #card-picker {
+    position: fixed;
+    background: #222;
+    border: 2px solid #0af;
+    padding: 10px;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    max-width: 600px;
+    max-height: 400px;
+    overflow: auto;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 5px;
+    z-index: 1000;
+  }
+  #card-picker.hidden {
+    display: none;
+  }
+  #card-picker img {
+    width: 40px;
+    height: 56px;
+    cursor: pointer;
+    border: 1px solid transparent;
+  }
+  #card-picker img:hover {
+    border-color: #0ff;
   }
   button {
     margin: 15px 5px 30px 0;
@@ -59,6 +82,7 @@
   }
   .player h3 {
     margin: 0 0 6px 0;
+    outline: none;
   }
   .result {
     font-size: 20px;
@@ -105,9 +129,10 @@
   <tbody></tbody>
 </table>
 
+<div id="card-picker" class="hidden"></div>
+
 <script>
-// --- Stałe ---
-const suits = ['h', 'd', 'c', 's']; // kier, karo, trefl, pik
+const suits = ['h', 'd', 'c', 's'];
 const suitNames = { h: '♥', d: '♦', c: '♣', s: '♠' };
 const values = ['2','3','4','5','6','7','8','9','10','J','Q','K','A'];
 const maxPlayers = 6;
@@ -117,77 +142,70 @@ let players = [];
 let communityCards = [];
 let scoreTable = {};
 
-// --- Funkcja tworząca selector karty z grafiką ---
-function createCardSelector(namePrefix) {
-  const wrapper = document.createElement('div');
-  wrapper.className = 'card-select';
+const cardPicker = document.getElementById('card-picker');
+let currentField = null;
 
-  // wartość
-  const valueSelect = document.createElement('select');
-  valueSelect.name = namePrefix + '_value';
-  values.forEach(v => {
-    const o = document.createElement('option');
-    o.value = v;
-    o.textContent = v;
-    valueSelect.appendChild(o);
-  });
-
-  // kolor
-  const suitSelect = document.createElement('select');
-  suitSelect.name = namePrefix + '_suit';
-  suits.forEach(s => {
-    const o = document.createElement('option');
-    o.value = s;
-    o.textContent = suitNames[s];
-    suitSelect.appendChild(o);
-  });
-
-  // obrazek karty
-  const img = document.createElement('img');
-  img.className = 'card-img';
-  // aktualizuj obrazek po zmianie selekcji
-  function updateImg() {
-    const val = valueSelect.value;
-    const suit = suitSelect.value;
-    img.src = getCardImageURL(val, suit);
-    img.alt = val + suitNames[suit];
+// Generuj panel wyboru kart
+function generateCardPicker() {
+  cardPicker.innerHTML = '';
+  for (const s of suits) {
+    for (const v of values) {
+      const img = document.createElement('img');
+      img.src = `https://deckofcardsapi.com/static/img/${v[0]}${s.toUpperCase()}.png`;
+      img.alt = v + s;
+      img.dataset.value = v;
+      img.dataset.suit = s;
+      img.onclick = () => selectCard(img);
+      cardPicker.appendChild(img);
+    }
   }
-  valueSelect.addEventListener('change', updateImg);
-  suitSelect.addEventListener('change', updateImg);
-  updateImg();
+}
+generateCardPicker();
 
-  wrapper.appendChild(valueSelect);
-  wrapper.appendChild(suitSelect);
-  wrapper.appendChild(img);
-
-  return wrapper;
+// Otwórz wybór kart dla pola
+function openCardPicker(fieldDiv) {
+  currentField = fieldDiv;
+  cardPicker.classList.remove('hidden');
 }
 
-function getCardImageURL(value, suit) {
-  // Karty z serwisu https://deckofcardsapi.com/static/img/
-  // Format: wartość + kolor (H, D, C, S) + .png (H = kier, D = karo, C = trefl, S = pik)
-  let val = value;
-  if (val === 'J') val = 'JACK';
-  else if (val === 'Q') val = 'QUEEN';
-  else if (val === 'K') val = 'KING';
-  else if (val === 'A') val = 'ACE';
-  else if (val === '10') val = '10';
-  else val = val;
-
-  const suitMap = { h: 'H', d: 'D', c: 'C', s: 'S' };
-
-  return `https://deckofcardsapi.com/static/img/${val[0]}${suitMap[suit]}.png`;
+// Wybierz kartę - bez blokady powtórzeń
+function selectCard(img) {
+  currentField.innerHTML = '';
+  const chosen = document.createElement('img');
+  chosen.src = img.src;
+  chosen.alt = img.alt;
+  chosen.dataset.value = img.dataset.value;
+  chosen.dataset.suit = img.dataset.suit;
+  currentField.appendChild(chosen);
+  cardPicker.classList.add('hidden');
 }
 
-// --- Dodawanie kart i graczy ---
+// Zamknij picker klikając poza nim
+document.addEventListener('click', e => {
+  if (!cardPicker.classList.contains('hidden') && !cardPicker.contains(e.target) && !e.target.classList.contains('card-field')) {
+    cardPicker.classList.add('hidden');
+  }
+});
+
+// Tworzy pole karty do kliknięcia
+function createCardField() {
+  const div = document.createElement('div');
+  div.className = 'card-field';
+  div.title = 'Kliknij, aby wybrać kartę';
+  div.onclick = () => openCardPicker(div);
+  return div;
+}
+
+// Dodaj kartę wspólną
 function addCommunityCard() {
   if (communityCards.length >= maxCommunityCards) return alert('Maksymalnie 5 kart wspólnych.');
   const container = document.getElementById('community-cards');
-  const cardSelector = createCardSelector('community_' + communityCards.length);
-  container.appendChild(cardSelector);
-  communityCards.push(cardSelector);
+  const cardField = createCardField();
+  container.appendChild(cardField);
+  communityCards.push(cardField);
 }
 
+// Dodaj gracza z 2 kartami
 function addPlayer() {
   if (players.length >= maxPlayers) return alert('Maksymalnie 6 graczy.');
   const container = document.getElementById('players-container');
@@ -199,15 +217,16 @@ function addPlayer() {
   h3.textContent = 'Gracz ' + (players.length + 1);
   playerDiv.appendChild(h3);
 
-  const card1 = createCardSelector('player' + players.length + '_card1');
-  const card2 = createCardSelector('player' + players.length + '_card2');
-  playerDiv.appendChild(card1);
-  playerDiv.appendChild(card2);
+  const cardField1 = createCardField();
+  const cardField2 = createCardField();
+  playerDiv.appendChild(cardField1);
+  playerDiv.appendChild(cardField2);
 
   container.appendChild(playerDiv);
-  players.push({ div: playerDiv, nameElem: h3, cardSelectors: [card1, card2] });
+  players.push({ div: playerDiv, nameElem: h3, cardFields: [cardField1, cardField2] });
 }
 
+// Reset kart i graczy
 function resetCards() {
   communityCards = [];
   players = [];
@@ -216,6 +235,7 @@ function resetCards() {
   document.getElementById('result').textContent = '';
 }
 
+// Reset tabeli wyników z potwierdzeniem
 function resetScores() {
   if (!confirm('Czy na pewno chcesz zresetować tabelę wyników?')) return;
   scoreTable = {};
@@ -224,15 +244,21 @@ function resetScores() {
   alert('Tabela wyników została zresetowana.');
 }
 
-// --- Pomocnicze funkcje do kart ---
-function parseCard(value, suit) {
+// Parsowanie karty z pola
+function parseCardField(cardField) {
+  const img = cardField.querySelector('img');
+  if (!img) return null;
+  const value = img.dataset.value;
+  const suit = img.dataset.suit;
   return { value, suit };
 }
+
 function cardValueIndex(card) {
   return values.indexOf(card.value);
 }
 
-// --- Zaawansowana logika pokerowa ---
+// Funkcje pomocnicze do oceny układów pokerowych
+
 function countByValue(cards) {
   const counts = {};
   cards.forEach(card => {
@@ -393,12 +419,7 @@ function evaluateHand(cards) {
 }
 
 function checkWinner() {
-  const comCards = communityCards.map(c => {
-    const val = c.querySelector('select[name$="_value"]').value;
-    const suit = c.querySelector('select[name$="_suit"]').value;
-    return parseCard(val, suit);
-  }).filter(c => c.value);
-
+  const comCards = communityCards.map(parseCardField).filter(c => c !== null);
   if (comCards.length < 3) {
     alert('Dodaj co najmniej 3 karty wspólne.');
     return;
@@ -406,29 +427,21 @@ function checkWinner() {
 
   const results = [];
   players.forEach(p => {
-    const c1 = p.cardSelectors[0].querySelector('select[name$="_value"]').value;
-    const s1 = p.cardSelectors[0].querySelector('select[name$="_suit"]').value;
-    const c2 = p.cardSelectors[1].querySelector('select[name$="_value"]').value;
-    const s2 = p.cardSelectors[1].querySelector('select[name$="_suit"]').value;
-
-    const cards = [
-      parseCard(c1, s1),
-      parseCard(c2, s2),
-      ...comCards
-    ];
-
+    const c1 = parseCardField(p.cardFields[0]);
+    const c2 = parseCardField(p.cardFields[1]);
+    if (!c1 || !c2) return;
+    const cards = [c1, c2, ...comCards];
     const evaluation = evaluateHand(cards);
-
-    results.push({
-      player: p.nameElem.textContent,
-      rank: evaluation.rank,
-      name: evaluation.name,
-      highCard: evaluation.highCard
-    });
+    results.push({ player: p.nameElem.textContent, rank: evaluation.rank, name: evaluation.name, highCard: evaluation.highCard });
   });
 
+  if (results.length === 0) {
+    alert('Dodaj karty dla co najmniej jednego gracza.');
+    return;
+  }
+
   results.sort((a,b) => {
-    if (b.rank !== a.rank) return b.rank - a.rank;
+    if(b.rank !== a.rank) return b.rank - a.rank;
     return values.indexOf(b.highCard.value) - values.indexOf(a.highCard.value);
   });
 
@@ -456,12 +469,11 @@ function updateScore(winner) {
   }
 }
 
-// --- Inicjuj ---
+// Inicjuj
 resetCards();
 addCommunityCard(); addCommunityCard(); addCommunityCard();
 addPlayer(); addPlayer();
-
 </script>
 
 </body>
-  </html>
+</html>
