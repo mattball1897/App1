@@ -170,15 +170,12 @@ let scoreTable = {};
 const cardPicker = document.getElementById('card-picker');
 let currentField = null;
 
-// Funkcja do poprawnego tworzenia URL karty (10 -> 0)
+// Poprawiona funkcja generująca URL kart (10 jako 0)
 function getCardImageURL(value, suit) {
   let valCode;
   if (value === '10') valCode = '0';
-  else if (value === 'J') valCode = 'J';
-  else if (value === 'Q') valCode = 'Q';
-  else if (value === 'K') valCode = 'K';
-  else if (value === 'A') valCode = 'A';
-  else valCode = value; // dla cyfr od 2 do 9
+  else if (['J','Q','K','A'].includes(value)) valCode = value;
+  else valCode = value;
 
   const suitCode = suit.toUpperCase();
   return `https://deckofcardsapi.com/static/img/${valCode}${suitCode}.png`;
@@ -207,7 +204,7 @@ function openCardPicker(fieldDiv) {
   cardPicker.classList.remove('hidden');
 }
 
-// Wybierz kartę - bez blokady powtórzeń
+// Wybierz kartę (bez blokady powtórzeń)
 function selectCard(img) {
   currentField.innerHTML = '';
   const chosen = document.createElement('img');
@@ -221,7 +218,9 @@ function selectCard(img) {
 
 // Zamknij picker klikając poza nim
 document.addEventListener('click', e => {
-  if (!cardPicker.classList.contains('hidden') && !cardPicker.contains(e.target) && !e.target.classList.contains('card-field')) {
+  if (!cardPicker.classList.contains('hidden') &&
+      !cardPicker.contains(e.target) &&
+      !e.target.classList.contains('card-field')) {
     cardPicker.classList.add('hidden');
   }
 });
@@ -237,7 +236,10 @@ function createCardField() {
 
 // Dodaj kartę wspólną
 function addCommunityCard() {
-  if (communityCards.length >= maxCommunityCards) return alert('Maksymalnie 5 kart wspólnych.');
+  if (communityCards.length >= maxCommunityCards) {
+    alert('Maksymalnie 5 kart wspólnych.');
+    return;
+  }
   const container = document.getElementById('community-cards');
   const cardField = createCardField();
   container.appendChild(cardField);
@@ -246,7 +248,10 @@ function addCommunityCard() {
 
 // Dodaj gracza z 2 kartami
 function addPlayer() {
-  if (players.length >= maxPlayers) return alert('Maksymalnie 6 graczy.');
+  if (players.length >= maxPlayers) {
+    alert('Maksymalnie 6 graczy.');
+    return;
+  }
   const container = document.getElementById('players-container');
   const playerDiv = document.createElement('div');
   playerDiv.className = 'player';
@@ -272,6 +277,7 @@ function resetCards() {
   document.getElementById('community-cards').innerHTML = '';
   document.getElementById('players-container').innerHTML = '';
   document.getElementById('result').textContent = '';
+  document.querySelectorAll('.card-field.winner').forEach(el => el.classList.remove('winner'));
 }
 
 // Reset tabeli wyników z potwierdzeniem
@@ -296,7 +302,7 @@ function cardValueIndex(card) {
   return values.indexOf(card.value);
 }
 
-// Funkcje pomocnicze do oceny układów pokerowych
+// Pomocnicze do oceny układów pokerowych
 
 function countByValue(cards) {
   const counts = {};
@@ -330,6 +336,7 @@ function isStraight(sortedValues) {
       count = 1;
     }
   }
+  // sprawdzenie A2345 (wheel)
   if (
     sortedValues.includes(12) && // As
     sortedValues.includes(3) &&
@@ -503,12 +510,4 @@ function updateScore(winner) {
     tdName.textContent = player;
     const tdWins = document.createElement('td');
     tdWins.textContent = scoreTable[player];
-    tr.appendChild(tdName);
-    tr.appendChild(tdWins);
-    tbody.appendChild(tr);
-  }
-}
-
-// Podświetlenie kart zwycięzcy
-function highlightWinningCards(winningPlayerName) {
-  document.querySelectorAll('.card-field.winner').forEach
+    tr.appendChild(tdName
