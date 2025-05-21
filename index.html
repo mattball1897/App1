@@ -1,0 +1,467 @@
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Zaawansowany Poker</title>
+<style>
+  body {
+    font-family: Arial, sans-serif;
+    background: #1a1a1a;
+    color: #eee;
+    max-width: 900px;
+    margin: auto;
+    padding: 20px;
+  }
+  h1,h2 {
+    color: #0ff;
+  }
+  .card-select {
+    display: inline-block;
+    margin: 5px;
+    text-align: center;
+  }
+  select {
+    width: 60px;
+    font-size: 16px;
+    margin: 2px 0;
+    border-radius: 4px;
+  }
+  .card-img {
+    width: 45px;
+    height: 65px;
+    margin-top: 4px;
+    display: block;
+    margin-left: auto;
+    margin-right: auto;
+  }
+  button {
+    margin: 15px 5px 30px 0;
+    padding: 8px 16px;
+    font-size: 16px;
+    cursor: pointer;
+    border-radius: 6px;
+    border: none;
+    background: #0af;
+    color: white;
+  }
+  button:hover {
+    background: #08c;
+  }
+  #players-container, #community-cards {
+    margin-bottom: 30px;
+  }
+  .player {
+    background: #222;
+    margin-bottom: 10px;
+    padding: 10px;
+    border-radius: 8px;
+  }
+  .player h3 {
+    margin: 0 0 6px 0;
+  }
+  .result {
+    font-size: 20px;
+    margin-top: 20px;
+    padding: 15px;
+    background: #004;
+    border-radius: 10px;
+  }
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    margin-top: 25px;
+  }
+  th, td {
+    border: 1px solid #444;
+    padding: 6px;
+    text-align: center;
+  }
+  th {
+    background: #0a6;
+  }
+</style>
+</head>
+<body>
+
+<h1>Zaawansowany Poker</h1>
+
+<h2>Karty wspólne (max 5)</h2>
+<div id="community-cards"></div>
+<button onclick="addCommunityCard()">Dodaj kartę wspólną</button>
+
+<h2>Gracze (max 6)</h2>
+<div id="players-container"></div>
+<button onclick="addPlayer()">Dodaj gracza</button>
+<button onclick="resetCards()">Resetuj karty</button>
+<button onclick="resetScores()">Resetuj tabelę wyników</button>
+<button onclick="checkWinner()">Sprawdź zwycięzcę</button>
+
+<div id="result" class="result"></div>
+
+<h2>Podsumowanie wyników</h2>
+<table id="score-table">
+  <thead><tr><th>Gracz</th><th>Wygrane</th></tr></thead>
+  <tbody></tbody>
+</table>
+
+<script>
+// --- Stałe ---
+const suits = ['h', 'd', 'c', 's']; // kier, karo, trefl, pik
+const suitNames = { h: '♥', d: '♦', c: '♣', s: '♠' };
+const values = ['2','3','4','5','6','7','8','9','10','J','Q','K','A'];
+const maxPlayers = 6;
+const maxCommunityCards = 5;
+
+let players = [];
+let communityCards = [];
+let scoreTable = {};
+
+// --- Funkcja tworząca selector karty z grafiką ---
+function createCardSelector(namePrefix) {
+  const wrapper = document.createElement('div');
+  wrapper.className = 'card-select';
+
+  // wartość
+  const valueSelect = document.createElement('select');
+  valueSelect.name = namePrefix + '_value';
+  values.forEach(v => {
+    const o = document.createElement('option');
+    o.value = v;
+    o.textContent = v;
+    valueSelect.appendChild(o);
+  });
+
+  // kolor
+  const suitSelect = document.createElement('select');
+  suitSelect.name = namePrefix + '_suit';
+  suits.forEach(s => {
+    const o = document.createElement('option');
+    o.value = s;
+    o.textContent = suitNames[s];
+    suitSelect.appendChild(o);
+  });
+
+  // obrazek karty
+  const img = document.createElement('img');
+  img.className = 'card-img';
+  // aktualizuj obrazek po zmianie selekcji
+  function updateImg() {
+    const val = valueSelect.value;
+    const suit = suitSelect.value;
+    img.src = getCardImageURL(val, suit);
+    img.alt = val + suitNames[suit];
+  }
+  valueSelect.addEventListener('change', updateImg);
+  suitSelect.addEventListener('change', updateImg);
+  updateImg();
+
+  wrapper.appendChild(valueSelect);
+  wrapper.appendChild(suitSelect);
+  wrapper.appendChild(img);
+
+  return wrapper;
+}
+
+function getCardImageURL(value, suit) {
+  // Karty z serwisu https://deckofcardsapi.com/static/img/
+  // Format: wartość + kolor (H, D, C, S) + .png (H = kier, D = karo, C = trefl, S = pik)
+  let val = value;
+  if (val === 'J') val = 'JACK';
+  else if (val === 'Q') val = 'QUEEN';
+  else if (val === 'K') val = 'KING';
+  else if (val === 'A') val = 'ACE';
+  else if (val === '10') val = '10';
+  else val = val;
+
+  const suitMap = { h: 'H', d: 'D', c: 'C', s: 'S' };
+
+  return `https://deckofcardsapi.com/static/img/${val[0]}${suitMap[suit]}.png`;
+}
+
+// --- Dodawanie kart i graczy ---
+function addCommunityCard() {
+  if (communityCards.length >= maxCommunityCards) return alert('Maksymalnie 5 kart wspólnych.');
+  const container = document.getElementById('community-cards');
+  const cardSelector = createCardSelector('community_' + communityCards.length);
+  container.appendChild(cardSelector);
+  communityCards.push(cardSelector);
+}
+
+function addPlayer() {
+  if (players.length >= maxPlayers) return alert('Maksymalnie 6 graczy.');
+  const container = document.getElementById('players-container');
+  const playerDiv = document.createElement('div');
+  playerDiv.className = 'player';
+
+  const h3 = document.createElement('h3');
+  h3.contentEditable = true;
+  h3.textContent = 'Gracz ' + (players.length + 1);
+  playerDiv.appendChild(h3);
+
+  const card1 = createCardSelector('player' + players.length + '_card1');
+  const card2 = createCardSelector('player' + players.length + '_card2');
+  playerDiv.appendChild(card1);
+  playerDiv.appendChild(card2);
+
+  container.appendChild(playerDiv);
+  players.push({ div: playerDiv, nameElem: h3, cardSelectors: [card1, card2] });
+}
+
+function resetCards() {
+  communityCards = [];
+  players = [];
+  document.getElementById('community-cards').innerHTML = '';
+  document.getElementById('players-container').innerHTML = '';
+  document.getElementById('result').textContent = '';
+}
+
+function resetScores() {
+  if (!confirm('Czy na pewno chcesz zresetować tabelę wyników?')) return;
+  scoreTable = {};
+  const tbody = document.querySelector('#score-table tbody');
+  tbody.innerHTML = '';
+  alert('Tabela wyników została zresetowana.');
+}
+
+// --- Pomocnicze funkcje do kart ---
+function parseCard(value, suit) {
+  return { value, suit };
+}
+function cardValueIndex(card) {
+  return values.indexOf(card.value);
+}
+
+// --- Zaawansowana logika pokerowa ---
+function countByValue(cards) {
+  const counts = {};
+  cards.forEach(card => {
+    counts[card.value] = (counts[card.value] || 0) + 1;
+  });
+  return counts;
+}
+
+function countBySuit(cards) {
+  const counts = {};
+  cards.forEach(card => {
+    counts[card.suit] = (counts[card.suit] || 0) + 1;
+  });
+  return counts;
+}
+
+function getSortedValues(cards) {
+  return cards
+    .map(c => values.indexOf(c.value))
+    .sort((a,b) => b - a);
+}
+
+function isStraight(sortedValues) {
+  let count = 1;
+  for (let i = 0; i < sortedValues.length - 1; i++) {
+    if (sortedValues[i] === sortedValues[i+1] + 1) {
+      count++;
+      if (count >= 5) return true;
+    } else if (sortedValues[i] !== sortedValues[i+1]) {
+      count = 1;
+    }
+  }
+  if (
+    sortedValues.includes(12) && // As
+    sortedValues.includes(3) &&
+    sortedValues.includes(2) &&
+    sortedValues.includes(1) &&
+    sortedValues.includes(0)
+  ) return true;
+  return false;
+}
+
+function getStraightHighCard(sortedValues) {
+  let count = 1;
+  let highCard = sortedValues[0];
+  for (let i = 0; i < sortedValues.length - 1; i++) {
+    if (sortedValues[i] === sortedValues[i+1] + 1) {
+      count++;
+      if (count >= 5) return highCard;
+    } else if (sortedValues[i] !== sortedValues[i+1]) {
+      count = 1;
+      highCard = sortedValues[i+1];
+    }
+  }
+  if (
+    sortedValues.includes(12) && // As
+    sortedValues.includes(3) &&
+    sortedValues.includes(2) &&
+    sortedValues.includes(1) &&
+    sortedValues.includes(0)
+  ) return 3;
+  return null;
+}
+
+function isFlush(countsBySuit) {
+  return Object.values(countsBySuit).some(count => count >= 5);
+}
+
+function getFlushSuit(countsBySuit) {
+  for (const suit in countsBySuit) {
+    if (countsBySuit[suit] >= 5) return suit;
+  }
+  return null;
+}
+
+function getCardsOfSuit(cards, suit) {
+  return cards.filter(c => c.suit === suit);
+}
+
+function evaluateHand(cards) {
+  const sortedValues = getSortedValues(cards);
+  const countsByValue = countByValue(cards);
+  const countsBySuit = countBySuit(cards);
+
+  const flushSuit = getFlushSuit(countsBySuit);
+  let flushCards = [];
+  if (flushSuit) {
+    flushCards = getCardsOfSuit(cards, flushSuit);
+  }
+
+  const is_flush = flushSuit !== null;
+  const straightHighCard = getStraightHighCard(sortedValues);
+
+  let is_straight = isStraight(sortedValues);
+
+  if (is_flush && straightHighCard === 12) {
+    return { rank: 10, name: 'Poker Królewski', highCard: { value: 'A', suit: flushSuit } };
+  }
+
+  if (is_flush && is_straight) {
+    return { rank: 9, name: 'Poker', highCard: { value: values[straightHighCard], suit: flushSuit } };
+  }
+
+  for (const val in countsByValue) {
+    if (countsByValue[val] === 4) {
+      return { rank: 8, name: 'Kareta', highCard: { value: val, suit: null } };
+    }
+  }
+
+  let threeVal = null;
+  let pairVal = null;
+  for (const val in countsByValue) {
+    if (countsByValue[val] === 3) {
+      if (!threeVal || values.indexOf(val) > values.indexOf(threeVal)) {
+        threeVal = val;
+      }
+    }
+  }
+  for (const val in countsByValue) {
+    if (countsByValue[val] >= 2 && val !== threeVal) {
+      if (!pairVal || values.indexOf(val) > values.indexOf(pairVal)) {
+        pairVal = val;
+      }
+    }
+  }
+  if (threeVal && pairVal) {
+    return { rank: 7, name: 'Full', highCard: { value: threeVal, suit: null } };
+  }
+
+  if (is_flush) {
+    const flushSorted = flushCards
+      .map(c => values.indexOf(c.value))
+      .sort((a,b) => b-a);
+    return { rank: 6, name: 'Kolor', highCard: { value: values[flushSorted[0]], suit: flushSuit } };
+  }
+
+  if (is_straight) {
+    return { rank: 5, name: 'Strit', highCard: { value: values[straightHighCard], suit: null } };
+  }
+
+  for (const val in countsByValue) {
+    if (countsByValue[val] === 3) {
+      return { rank: 4, name: 'Trójka', highCard: { value: val, suit: null } };
+    }
+  }
+
+  const pairs = Object.keys(countsByValue).filter(val => countsByValue[val] === 2)
+    .sort((a,b) => values.indexOf(b) - values.indexOf(a));
+  if (pairs.length >= 2) {
+    return { rank: 3, name: 'Dwie pary', highCard: { value: pairs[0], suit: null } };
+  }
+
+  if (pairs.length === 1) {
+    return { rank: 2, name: 'Para', highCard: { value: pairs[0], suit: null } };
+  }
+
+  return { rank: 1, name: 'Najwyższa karta', highCard: { value: values[sortedValues[0]], suit: null } };
+}
+
+function checkWinner() {
+  const comCards = communityCards.map(c => {
+    const val = c.querySelector('select[name$="_value"]').value;
+    const suit = c.querySelector('select[name$="_suit"]').value;
+    return parseCard(val, suit);
+  }).filter(c => c.value);
+
+  if (comCards.length < 3) {
+    alert('Dodaj co najmniej 3 karty wspólne.');
+    return;
+  }
+
+  const results = [];
+  players.forEach(p => {
+    const c1 = p.cardSelectors[0].querySelector('select[name$="_value"]').value;
+    const s1 = p.cardSelectors[0].querySelector('select[name$="_suit"]').value;
+    const c2 = p.cardSelectors[1].querySelector('select[name$="_value"]').value;
+    const s2 = p.cardSelectors[1].querySelector('select[name$="_suit"]').value;
+
+    const cards = [
+      parseCard(c1, s1),
+      parseCard(c2, s2),
+      ...comCards
+    ];
+
+    const evaluation = evaluateHand(cards);
+
+    results.push({
+      player: p.nameElem.textContent,
+      rank: evaluation.rank,
+      name: evaluation.name,
+      highCard: evaluation.highCard
+    });
+  });
+
+  results.sort((a,b) => {
+    if (b.rank !== a.rank) return b.rank - a.rank;
+    return values.indexOf(b.highCard.value) - values.indexOf(a.highCard.value);
+  });
+
+  const win = results[0];
+  const resDiv = document.getElementById('result');
+  resDiv.innerHTML = `<strong>Zwycięzca:</strong> ${win.player} — ${win.name} (karta: ${win.highCard.value}${suitNames[win.highCard.suit] || ''})`;
+
+  updateScore(win.player);
+}
+
+function updateScore(winner) {
+  if (!scoreTable[winner]) scoreTable[winner] = 0;
+  scoreTable[winner]++;
+  const tbody = document.querySelector('#score-table tbody');
+  tbody.innerHTML = '';
+  for (const player in scoreTable) {
+    const tr = document.createElement('tr');
+    const tdName = document.createElement('td');
+    tdName.textContent = player;
+    const tdWins = document.createElement('td');
+    tdWins.textContent = scoreTable[player];
+    tr.appendChild(tdName);
+    tr.appendChild(tdWins);
+    tbody.appendChild(tr);
+  }
+}
+
+// --- Inicjuj ---
+resetCards();
+addCommunityCard(); addCommunityCard(); addCommunityCard();
+addPlayer(); addPlayer();
+
+</script>
+
+</body>
+  </html>
