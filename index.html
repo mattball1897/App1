@@ -129,6 +129,26 @@
   th {
     background: #0a6;
   }
+  .remove-btn {
+    margin-left: 10px;
+    background: #d22;
+    color: white;
+    font-weight: bold;
+    border: none;
+    cursor: pointer;
+    border-radius: 4px;
+    padding: 3px 8px;
+    font-size: 16px;
+    line-height: 1;
+  }
+  .remove-btn:hover {
+    background: #a00;
+  }
+  .player-header {
+    display: flex;
+    align-items: center;
+    margin-bottom: 8px;
+  }
 </style>
 </head>
 <body>
@@ -170,13 +190,15 @@ let scoreTable = {};
 const cardPicker = document.getElementById('card-picker');
 let currentField = null;
 
-// Generuj panel wyboru kart
+// Generuj panel wyboru kart – poprawka dla "10"
 function generateCardPicker() {
   cardPicker.innerHTML = '';
   for (const s of suits) {
     for (const v of values) {
       const img = document.createElement('img');
-      img.src = `https://deckofcardsapi.com/static/img/${v[0]}${s.toUpperCase()}.png`;
+      // deckofcardsapi wymaga '0' zamiast '10' jako nazwy pliku
+      let valForSrc = v === '10' ? '0' : v[0];
+      img.src = `https://deckofcardsapi.com/static/img/${valForSrc}${s.toUpperCase()}.png`;
       img.alt = v + s;
       img.dataset.value = v;
       img.dataset.suit = s;
@@ -193,7 +215,7 @@ function openCardPicker(fieldDiv) {
   cardPicker.classList.remove('hidden');
 }
 
-// Wybierz kartę - bez blokady powtórzeń
+// Wybierz kartę
 function selectCard(img) {
   currentField.innerHTML = '';
   const chosen = document.createElement('img');
@@ -230,17 +252,38 @@ function addCommunityCard() {
   communityCards.push(cardField);
 }
 
-// Dodaj gracza z 2 kartami
+// Dodaj gracza z 2 kartami i X do usuwania
 function addPlayer() {
   if (players.length >= maxPlayers) return alert('Maksymalnie 6 graczy.');
   const container = document.getElementById('players-container');
   const playerDiv = document.createElement('div');
   playerDiv.className = 'player';
 
+  const headerDiv = document.createElement('div');
+  headerDiv.className = 'player-header';
+
   const h3 = document.createElement('h3');
   h3.contentEditable = true;
   h3.textContent = 'Gracz ' + (players.length + 1);
-  playerDiv.appendChild(h3);
+
+  // Dodaj przycisk X
+  const removeBtn = document.createElement('button');
+  removeBtn.textContent = 'X';
+  removeBtn.className = 'remove-btn';
+  removeBtn.title = 'Usuń gracza';
+  removeBtn.onclick = (e) => {
+    e.stopPropagation();
+    if (confirm('Czy chcesz usunąć tego gracza?')) {
+      container.removeChild(playerDiv);
+      // Usuń z listy players:
+      players = players.filter(p => p.div !== playerDiv);
+    }
+  };
+
+  headerDiv.appendChild(h3);
+  headerDiv.appendChild(removeBtn);
+
+  playerDiv.appendChild(headerDiv);
 
   const cardField1 = createCardField();
   const cardField2 = createCardField();
@@ -251,13 +294,16 @@ function addPlayer() {
   players.push({ div: playerDiv, nameElem: h3, cardFields: [cardField1, cardField2] });
 }
 
-// Reset kart i graczy
+// Reset kart i graczy – poprawka!
 function resetCards() {
+  // Czyść tylko karty i karty wspólne, nie graczy!
   communityCards = [];
-  players = [];
   document.getElementById('community-cards').innerHTML = '';
-  document.getElementById('players-container').innerHTML = '';
   document.getElementById('result').textContent = '';
+  // Wyczyść karty graczy:
+  players.forEach(p => {
+    p.cardFields.forEach(field => field.innerHTML = '');
+  });
 }
 
 // Reset tabeli wyników z potwierdzeniem
@@ -461,53 +507,4 @@ function checkWinner() {
   });
 
   if (results.length === 0) {
-    alert('Dodaj karty dla co najmniej jednego gracza.');
-    return;
-  }
-
-  results.sort((a,b) => {
-    if(b.rank !== a.rank) return b.rank - a.rank;
-    return values.indexOf(b.highCard.value) - values.indexOf(a.highCard.value);
-  });
-
-  const win = results[0];
-  const resDiv = document.getElementById('result');
-  resDiv.innerHTML = `<strong>Zwycięzca:</strong> ${win.player} — ${win.name} (karta: ${win.highCard.value}${suitNames[win.highCard.suit] || ''})`;
-
-  highlightWinningCards(win.player);
-  updateScore(win.player);
-}
-
-function updateScore(winner) {
-  if (!scoreTable[winner]) scoreTable[winner] = 0;
-  scoreTable[winner]++;
-  const tbody = document.querySelector('#score-table tbody');
-  tbody.innerHTML = '';
-  for (const player in scoreTable) {
-    const tr = document.createElement('tr');
-    const tdName = document.createElement('td');
-    tdName.textContent = player;
-    const tdWins = document.createElement('td');
-    tdWins.textContent = scoreTable[player];
-    tr.appendChild(tdName);
-    tr.appendChild(tdWins);
-    tbody.appendChild(tr);
-  }
-}
-
-// Podświetlenie kart zwycięzcy
-function highlightWinningCards(winningPlayerName) {
-  document.querySelectorAll('.card-field.winner').forEach(el => el.classList.remove('winner'));
-  const player = players.find(p => p.nameElem.textContent === winningPlayerName);
-  if (!player) return;
-  player.cardFields.forEach(cardField => cardField.classList.add('winner'));
-}
-
-// Start
-resetCards();
-addCommunityCard(); addCommunityCard(); addCommunityCard();
-addPlayer(); addPlayer();
-</script>
-
-</body>
-</html>
+    alert
