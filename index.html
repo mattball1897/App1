@@ -174,7 +174,11 @@ let currentField = null;
 function getCardImageURL(value, suit) {
   let valCode;
   if (value === '10') valCode = '0';
-  else valCode = value[0].toUpperCase();
+  else if (value === 'J') valCode = 'J';
+  else if (value === 'Q') valCode = 'Q';
+  else if (value === 'K') valCode = 'K';
+  else if (value === 'A') valCode = 'A';
+  else valCode = value; // dla cyfr od 2 do 9
 
   const suitCode = suit.toUpperCase();
   return `https://deckofcardsapi.com/static/img/${valCode}${suitCode}.png`;
@@ -507,12 +511,4 @@ function updateScore(winner) {
 
 // Podświetlenie kart zwycięzcy
 function highlightWinningCards(winningPlayerName) {
-  document.querySelectorAll('.card-field.winner').forEach(el => el.classList.remove('winner'));
-  const player = players.find(p => p.nameElem.textContent === winningPlayerName);
-  if (!player) return;
-  player.cardFields.forEach(cardField => cardField.classList.add('winner'));
-}
-
-// Start
-resetCards();
-addCommunityCard(); addCommunityCard
+  document.querySelectorAll('.card-field.winner').forEach
